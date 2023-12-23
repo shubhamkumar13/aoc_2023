@@ -1,19 +1,3 @@
-import Std.Data.HashMap
-
-def ex := "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green"
-
-def filterNoise (lst : List String) : List String :=
-  let filterChars := fun
-    | ';' | ':' | ',' => none
-    | ch => some ch
-  let filterString (str : String) : String :=
-    let charList : List Char := (str.toList).filterMap filterChars
-    charList.foldl (init := "") String.push
-  lst.map filterString
-
-def parseLine (line : String)  :=
-  line.splitOn |> filterNoise
-
 inductive Color where
   | red : Color
   | green : Color
@@ -26,50 +10,53 @@ structure Event where
   possible : Bool
 deriving Repr
 
+abbrev SuperEvent := List Event
+abbrev SuperEventList := List SuperEvent
+
 structure Game where
   id : Nat
-  events : List Event
+  events : SuperEventList
 deriving Repr
 
-def mkEvent? (color : String) (number : String) : Option Event :=
+def mkEventHelper (color : String) (number : String) : Option Event :=
   match color with
   | "red" => some {color := Color.red, number := number.toNat!, possible := number.toNat! <= 12}
-  | "blue" => some {color := Color.blue, number := number.toNat!, possible := number.toNat! <= 13}
-  | "green" => some {color := Color.green, number := number.toNat!, possible := number.toNat! <= 14}
+  | "green" => some {color := Color.blue, number := number.toNat!, possible := number.toNat! <= 13}
+  | "blue" => some {color := Color.green, number := number.toNat!, possible := number.toNat! <= 14}
   | _ => none
 
-def toColor? (line : String) : Option Event :=
+def mkEvent? (line : String) : Option Event :=
   match line.splitOn with
-  | number :: color :: _ => mkEvent? color number
+  | number :: color :: _ => mkEventHelper color number
   | _ => none
 
-def mkID (gameID : String) :=
-  gameID.trim.splitOn |>.tail! |>.head! |>.toNat!
+def isEventListPossible (e : SuperEvent) : Bool := e.foldl
+  (init := true) (fun acc x => acc && x.possible)
 
-def mkGame (events : String) : List (List Event) :=
+def isGamePossible (lst : SuperEventList) : Bool := lst.foldl
+  (init := true) (fun acc x => acc && isEventListPossible x)
+
+def mkSuperEventList (s : String) : SuperEventList :=
   let parseSemicolon events : List String := events.trim.splitOn ";" |>.map String.trim
   let parseComma s := s.splitOn "," |>.map String.trim
-  let validColors : List String → List Event := .filterMap toColor?
-  parseSemicolon events |>.map (validColors ∘ parseComma)
+  let toSuperEvent : List String → SuperEvent := .filterMap mkEvent?
+  parseSemicolon s |>.map (toSuperEvent ∘ parseComma)
 
-def isGamePossible (game : Game) :=
-  game.events
+def mkId (gameLine : String) : Nat :=
+  gameLine.splitOn ":" |>.head!.trim.splitOn " " |>.drop 1 |>.head!.trim.toNat!
 
-α
+def mkGame? (gameLine : String) : Option Game :=
+  let id := mkId gameLine
+  let events := gameLine.splitOn ":" |>.drop 1 |>.head! |>.trim
+  let superEventList := mkSuperEventList events
+  if isGamePossible superEventList then
+    some {id := id, events := superEventList}
+  else none
 
-def f (line : String) : Game :=
-  let lst := line.splitOn ":"
-  {id := mkID (lst.head!), events := List.concat mkGame (lst.tail!.head!)}
+def mkGames (text : String) : List Game :=
+  text.splitOn "\n" |>.filterMap mkGame?
 
-#eval f ex
-  -- |> String.trim
-  -- |>.splitOn ";" |>.map String.trim |>.map (fun s => s.splitOn "," |> List.map String.trim)
-  -- |>.map (fun lst => lst.filterMap toColor?)
-
-#eval List.map (String.map (fun ch =>
-  match ch with
-  | ':' => ' '
-  | ',' => ' '
-  | ';' => ' '
-  | _ => ch
-)) (ex.splitOn " ")
+def day2Part1Fn (path : String) : IO Nat := do
+  let input <- IO.FS.readFile path
+  return mkGames input
+    |>.foldl (init := 0) (· + ·.id)
