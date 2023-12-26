@@ -11,6 +11,8 @@ def day1 (_ : Unit) : IO Unit := do
 def day2 (_ : Unit) : IO Unit := do
   let input := "/home/sk/aoc_2023/Aoc2023/Day2/input.txt"
   let part1 <- day2Part1Fn input
+  let part2 <- day2Part2Fn input
   IO.println s! "Day 2 Part 1 = {part1}"
+  IO.println s! "Day 2 Part 2 = {part2}"
 
 def main : IO Unit := day2 ()
